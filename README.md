@@ -19,7 +19,7 @@ This project is a Flutter application. Follow these steps to set up and run the 
 
 1.  **Clone the repository:**
     ```bash
-    git clone <YOUR_REPOSITORY_URL_HERE>
+    git clone https://github.com/yohabay/fitmax_pro
     cd gym_training_app
     ```
 2.  **Install Flutter dependencies:**
