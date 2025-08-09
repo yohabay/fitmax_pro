@@ -1,20 +1,61 @@
 # 🏋️‍♂️ Gym Training App — FitMax Pro
 
-A **comprehensive Flutter-powered fitness app** designed to help users manage their workout journey, track nutrition, monitor progress, and stay motivated with a vibrant fitness community.
+![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter)
+![Firebase](https://img.shields.io/badge/Firebase-Backend-orange?logo=firebase)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-lightgrey)
+
+A **modern fitness management app** built with **Flutter** to help users **plan workouts, track nutrition, monitor progress, and stay motivated** with a supportive fitness community.
 
 ---
 
-## ✨ Key Features
+## ✨ Features
 
-- **🏃 Workout Management** — Plan, track, and analyze your training sessions with ease.
-- **🥗 Nutrition Tracking** — Log meals, monitor macros, and meet your diet goals.
-- **📈 Progress Monitoring** — Visual charts & analytics to keep you motivated.
-- **💬 Social Features** — Share progress, join discussions, and inspire others.
-- **🔐 Secure Authentication** — Simple and secure login & sign-up flow.
-- **🤖 AI Chat Assistant** — Get personalized workout & nutrition advice.
-- **📷 Barcode/Food Scanning** — Quick meal logging via barcode scan.
-- **🔔 Smart Notifications** — Reminders & alerts to keep you on track.
+- **🏃 Workout Management** — Plan, track, and analyze your training sessions.
+- **🥗 Nutrition Tracking** — Log meals and monitor macros.
+- **📈 Progress Monitoring** — Visual charts & analytics.
+- **💬 Social Features** — Share progress & join discussions.
+- **🔐 Secure Authentication** — Sign-up & login with Firebase.
+- **🤖 AI Chat Assistant** — Get personalized advice.
+- **📷 Barcode/Food Scanning** — Quick meal logging via scan.
+- **🔔 Notifications** — Stay on track with reminders.
 
+---
+
+## 📸 Screenshots
+
+| Home Screen | Workout Plan | Nutrition Log |
+|-------------|--------------|---------------|
+| ![Home](screenshots/home.png) | ![Workout](screenshots/workout.png) | ![Nutrition](screenshots/nutrition.png) |
+
+> *(Replace images with your actual screenshots inside a `/screenshots` folder.)*
+
+---
+
+## 🛠 Tech Stack
+
+- **Framework:** [Flutter](https://flutter.dev/) (Dart)
+- **State Management:** Provider / Riverpod
+- **Backend & Auth:** Firebase Authentication
+- **Database:** Hive / SQLite
+- **Push Notifications:** Firebase Cloud Messaging (FCM)
+- **AI Chat:** OpenAI API integration
+- **Barcode Scanner:** `flutter_barcode_scanner`
+
+---
+
+## 📂 Folder Structure
+
+lib/
+│
+├── main.dart # App entry point
+├── screens/ # All UI screens
+├── widgets/ # Reusable UI components
+├── models/ # Data models
+├── providers/ # State management providers
+├── services/ # API & business logic
+├── utils/ # Helpers & constants
+└── assets/ # Images, icons, fonts
 ---
 
 ## 🚀 Getting Started
