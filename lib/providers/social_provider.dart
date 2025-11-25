@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/social.dart';
 
 class SocialProvider with ChangeNotifier {
@@ -16,76 +17,62 @@ class SocialProvider with ChangeNotifier {
     _loadInitialData();
   }
 
-  void _loadInitialData() {
-    _posts = [
-      Post(
-        id: '1',
-        userId: 'user1',
-        userName: 'Sarah Johnson',
-        userAvatar: 'assets/images/fitness-woman-2.png',
-        content: 'Just completed my morning run! 5K in 25 minutes 🏃‍♀️',
-        timestamp: DateTime.now().subtract(Duration(hours: 2)),
-        likes: 15,
-        comments: 3,
-        imageUrl: 'assets/images/morning-run-sunrise.png',
-      ),
-      Post(
-        id: '2',
-        userId: 'user2',
-        userName: 'Mike Chen',
-        userAvatar: 'assets/images/fitness-man-2.png',
-        content: 'New PR on deadlifts today! 180kg x 3 reps 💪',
-        timestamp: DateTime.now().subtract(Duration(hours: 4)),
-        likes: 23,
-        comments: 7,
-      ),
-    ];
+  Future<void> _loadInitialData() async {
+    // Load posts from database
+    final postsResponse = await Supabase.instance.client
+        .from('posts')
+        .select()
+        .order('created_at', ascending: false);
 
-    _friends = [
-      User(
-        id: 'friend1',
-        name: 'Emma Wilson',
-        avatar: 'assets/images/fitness-woman.png',
-        level: 12,
-        streak: 15,
-      ),
-      User(
-        id: 'friend2',
-        name: 'Alex Rodriguez',
-        avatar: 'assets/images/fitness-man.png',
-        level: 8,
-        streak: 7,
-      ),
-    ];
+    _posts = postsResponse.map((json) => Post(
+      id: json['id'],
+      userId: json['user_id'],
+      userName: 'User', // Would need to join with profiles table
+      userAvatar: 'assets/images/placeholder-user.jpg',
+      content: json['content'],
+      timestamp: DateTime.parse(json['created_at']),
+      likes: json['likes'] ?? 0,
+      comments: 0, // Would need to count comments
+      imageUrl: json['image_url'],
+    )).toList();
 
-    _challenges = [
-      Challenge(
-        id: 'challenge1',
-        title: '30-Day Push-up Challenge',
-        description: 'Complete 1000 push-ups in 30 days',
-        participants: 156,
-        daysLeft: 12,
-        progress: 0.65,
-      ),
-      Challenge(
-        id: 'challenge2',
-        title: 'Summer Shred',
-        description: 'Lose 10 pounds in 8 weeks',
-        participants: 89,
-        daysLeft: 25,
-        progress: 0.3,
-      ),
-    ];
+    // Load friends from database
+    final friendsResponse = await Supabase.instance.client
+        .from('friends')
+        .select()
+        .eq('user_id', 'demo_user')
+        .eq('status', 'accepted');
+
+    _friends = friendsResponse.map((json) => User(
+      id: json['friend_id'],
+      name: json['friend_name'],
+      avatar: json['friend_avatar'] ?? 'assets/images/placeholder-user.jpg',
+      level: json['friend_level'] ?? 1,
+      streak: json['friend_streak'] ?? 0,
+    )).toList();
+
+    // Load challenges from database
+    final challengesResponse = await Supabase.instance.client
+        .from('challenges')
+        .select();
+
+    _challenges = challengesResponse.map((json) => Challenge(
+      id: json['id'],
+      title: json['title'],
+      description: json['description'],
+      participants: json['participants'] ?? 0,
+      daysLeft: json['end_date'] != null
+          ? DateTime.parse(json['end_date']).difference(DateTime.now()).inDays
+          : 30,
+      progress: 0.0, // Would need user-specific progress
+    )).toList();
   }
 
   Future<void> refreshFeed() async {
     _isLoading = true;
     notifyListeners();
 
-    // Simulate API call
-    await Future.delayed(Duration(seconds: 2));
-
-    _loadInitialData();
+    await _loadInitialData();
     _isLoading = false;
     notifyListeners();
   }
@@ -114,14 +101,23 @@ class SocialProvider with ChangeNotifier {
     }
   }
 
-  void createPost(String content, {String? imageUrl}) {
+  Future<void> createPost(String content, {String? imageUrl}) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    final response = await Supabase.instance.client.from('posts').insert({
+      'user_id': user.id,
+      'content': content,
+      'image_url': imageUrl,
+    }).select().single();
+
     final newPost = Post(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      userId: 'current_user',
+      id: response['id'],
+      userId: user.id,
       userName: 'You',
       userAvatar: 'assets/images/placeholder-user.jpg',
       content: content,
-      timestamp: DateTime.now(),
+      timestamp: DateTime.parse(response['created_at']),
       likes: 0,
       comments: 0,
       imageUrl: imageUrl,

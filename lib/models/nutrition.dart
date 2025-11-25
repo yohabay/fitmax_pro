@@ -70,11 +70,11 @@ class Meal {
   factory Meal.fromJson(Map<String, dynamic> json) {
     return Meal(
       id: json['id'],
-      mealType: json['mealType'],
-      foodName: json['foodName'],
+      mealType: json['meal_type'],
+      foodName: json['food_name'],
       calories: json['calories'],
       time: json['time'],
-      imageUrl: json['imageUrl'],
+      imageUrl: json['image_url'] ?? '',
       macros: MacroData(
         protein: json['macros']['protein'].toDouble(),
         carbs: json['macros']['carbs'].toDouble(),

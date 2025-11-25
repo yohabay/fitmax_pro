@@ -19,7 +19,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
   final _nameController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _agreeToTerms = false;
@@ -56,10 +55,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
-
     try {
       final userProvider = Provider.of<UserProvider>(context, listen: false);
 
@@ -70,18 +65,28 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           _passwordController.text,
         );
 
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => OnboardingScreen()),
-        );
+        // Check if user is actually logged in after registration
+        if (userProvider.isLoggedIn) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => OnboardingScreen()),
+          );
+        } else {
+          throw Exception('Registration failed. Please try again.');
+        }
       } else {
         await userProvider.login(
           _emailController.text,
           _passwordController.text,
         );
 
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => MainApp()),
-        );
+        // Check if user is actually logged in after login
+        if (userProvider.isLoggedIn) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MainApp()),
+          );
+        } else {
+          throw Exception('Login failed. Please check your credentials.');
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -90,12 +95,6 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
           backgroundColor: Colors.red,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
   }
 
@@ -259,29 +258,33 @@ class _AuthScreenState extends State<AuthScreen> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 24),
 
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleAuth,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                Consumer<UserProvider>(
+                  builder: (context, userProvider, child) {
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: userProvider.isLoading ? null : _handleAuth,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 5,
+                        ),
+                        child: userProvider.isLoading
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : Text(
+                          _tabController.index == 0 ? 'Sign In' : 'Create Account',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                      elevation: 5,
-                    ),
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : Text(
-                      _tabController.index == 0 ? 'Sign In' : 'Create Account',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 24),

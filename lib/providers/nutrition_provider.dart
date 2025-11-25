@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/nutrition.dart';
 
 class NutritionProvider with ChangeNotifier {
@@ -38,39 +39,18 @@ class NutritionProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 1));
-      
-      _todaysMeals = [
-        Meal(
-          id: '1',
-          mealType: 'Breakfast',
-          foodName: 'Oatmeal with berries & honey',
-          calories: 320,
-          time: '8:00 AM',
-          imageUrl: 'assets/images/yoga-morning-flow.png',
-          macros: MacroData(protein: 12, carbs: 58, fat: 6),
-        ),
-        Meal(
-          id: '2',
-          mealType: 'Lunch',
-          foodName: 'Grilled chicken salad',
-          calories: 450,
-          time: '12:30 PM',
-          imageUrl: 'assets/images/deadlift-gym.png',
-          macros: MacroData(protein: 35, carbs: 15, fat: 28),
-        ),
-        Meal(
-          id: '3',
-          mealType: 'Snack',
-          foodName: 'Greek yogurt with nuts',
-          calories: 180,
-          time: '3:00 PM',
-          imageUrl: 'assets/images/cardio-hiit-workout.png',
-          macros: MacroData(protein: 15, carbs: 12, fat: 8),
-        ),
-      ];
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user != null) {
+        final response = await Supabase.instance.client
+            .from('meals')
+            .select()
+            .eq('user_id', user.id)
+            .eq('date', DateTime.now().toIso8601String().split('T')[0]);
 
+        _todaysMeals = response.map((json) => Meal.fromJson(json)).toList();
+      }
+
+      // Keep insights as static for now
       _insights = [
         NutritionInsight(
           title: 'Great protein intake!',
@@ -116,29 +96,50 @@ class NutritionProvider with ChangeNotifier {
     print('Fasting reminder set');
   }
 
-  void addMeal(Meal meal) {
-    _todaysMeals.add(meal);
-    // Update daily calories
-    _dailyCalories = DailyCalories(
-      consumed: _dailyCalories.consumed + meal.calories,
-      target: _dailyCalories.target,
-      burned: _dailyCalories.burned,
-    );
-    
-    // Update macros
-    _macros['protein'] = MacroData(
-      current: _macros['protein']!.current + meal.macros.protein,
-      target: _macros['protein']!.target,
-    );
-    _macros['carbs'] = MacroData(
-      current: _macros['carbs']!.current + meal.macros.carbs,
-      target: _macros['carbs']!.target,
-    );
-    _macros['fat'] = MacroData(
-      current: _macros['fat']!.current + meal.macros.fat,
-      target: _macros['fat']!.target,
-    );
-    
-    notifyListeners();
+  Future<void> addMeal(Meal meal) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await Supabase.instance.client.from('meals').insert({
+        'user_id': user.id,
+        'meal_type': meal.mealType,
+        'food_name': meal.foodName,
+        'calories': meal.calories,
+        'time': meal.time,
+        'image_url': meal.imageUrl,
+        'macros': {
+          'protein': meal.macros.protein,
+          'carbs': meal.macros.carbs,
+          'fat': meal.macros.fat,
+        },
+      });
+
+      _todaysMeals.add(meal);
+      // Update daily calories
+      _dailyCalories = DailyCalories(
+        consumed: _dailyCalories.consumed + meal.calories,
+        target: _dailyCalories.target,
+        burned: _dailyCalories.burned,
+      );
+
+      // Update macros
+      _macros['protein'] = MacroData(
+        current: _macros['protein']!.current + meal.macros.protein,
+        target: _macros['protein']!.target,
+      );
+      _macros['carbs'] = MacroData(
+        current: _macros['carbs']!.current + meal.macros.carbs,
+        target: _macros['carbs']!.target,
+      );
+      _macros['fat'] = MacroData(
+        current: _macros['fat']!.current + meal.macros.fat,
+        target: _macros['fat']!.target,
+      );
+
+      notifyListeners();
+    } catch (e) {
+      print('Add meal error: $e');
+    }
   }
 }

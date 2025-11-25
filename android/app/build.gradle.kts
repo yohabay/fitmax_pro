@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.gym_traing_app"
+    namespace = "com.fitmaxpro.gymtrainingapp"
 
     compileSdk = 36
 
@@ -22,16 +22,25 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.gym_traing_app"
+        applicationId = "com.fitmaxpro.gymtrainingapp"
         minSdk = 26
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = "yoha6070"
+            keyAlias = "release"
+            keyPassword = "yoha6070"
+        }
+    }
+
     buildTypes {
-        release {
-            signingConfig = signingConfigs.getByName("debug")
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_screen.dart';
+import 'main_app.dart';
+import '../providers/user_provider.dart';
 import '../utils/theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -13,7 +17,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   late Animation<double> _opacity;
   late Animation<double> _scale;
 
-  Timer? _timer;
+  bool _isCheckingAuth = false;
 
   @override
   void initState() {
@@ -40,7 +44,40 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _controller.forward();
 
-    _timer = Timer(const Duration(seconds: 3), () {
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    // Wait for animations to complete
+    await Future.delayed(const Duration(seconds: 3));
+
+    if (!mounted) return;
+
+    setState(() {
+      _isCheckingAuth = true;
+    });
+
+    // Wait for UserProvider to finish initializing
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    await userProvider.initialized;
+
+    if (!mounted) return;
+
+    // Check if user is already authenticated
+    if (userProvider.isLoggedIn) {
+      print('✅ User is logged in, navigating to MainApp');
+      // User is authenticated, go to main app
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => MainApp(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+    } else {
+      print('❌ User not logged in, navigating to AuthScreen');
+      // User not authenticated, go to auth screen
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) => AuthScreen(),
@@ -49,13 +86,12 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           },
         ),
       );
-    });
+    }
   }
 
   @override
   void dispose() {
     _controller.dispose();
-    _timer?.cancel();
     super.dispose();
   }
 

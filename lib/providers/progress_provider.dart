@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/progress.dart';
 
 class ProgressProvider with ChangeNotifier {
@@ -18,7 +19,55 @@ class ProgressProvider with ChangeNotifier {
     _loadInitialData();
   }
 
-  void _loadInitialData() {
+  Future<void> _loadInitialData() async {
+    // Load weight entries from database
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      final weightResponse = await Supabase.instance.client
+          .from('progress_entries')
+          .select()
+          .eq('user_id', user.id)
+          .eq('type', 'weight')
+          .order('date', ascending: true);
+
+      _weightEntries = weightResponse.map((json) => WeightEntry(
+        date: DateTime.parse(json['date']),
+        weight: json['value'].toDouble(),
+      )).toList();
+
+      // Load body measurements (simplified - in real app, group by date)
+      final measurementResponse = await Supabase.instance.client
+          .from('progress_entries')
+          .select()
+          .eq('user_id', user.id)
+          .inFilter('type', ['chest', 'waist', 'hips', 'biceps', 'thighs'])
+          .order('date', ascending: false);
+
+      // Group by date for body measurements
+      Map<String, Map<String, double>> measurementsByDate = {};
+      for (var entry in measurementResponse) {
+        String date = entry['date'];
+        String type = entry['type'];
+        double value = entry['value'].toDouble();
+
+        measurementsByDate[date] ??= {};
+        measurementsByDate[date]![type] = value;
+      }
+
+      _bodyMeasurements = measurementsByDate.entries.map((entry) {
+        var data = entry.value;
+        return BodyMeasurement(
+          date: DateTime.parse(entry.key),
+          chest: data['chest'] ?? 0,
+          waist: data['waist'] ?? 0,
+          hips: data['hips'] ?? 0,
+          biceps: data['biceps'] ?? 0,
+          thighs: data['thighs'] ?? 0,
+        );
+      }).toList();
+    }
+
+    // Keep workout sessions and personal records as local for now
     // Sample workout sessions
     _workoutSessions = [
       WorkoutSession(
@@ -40,36 +89,6 @@ class ProgressProvider with ChangeNotifier {
         caloriesBurned: 280,
         exercises: [],
       ),
-    ];
-
-    // Sample body measurements
-    _bodyMeasurements = [
-      BodyMeasurement(
-        date: DateTime.now().subtract(Duration(days: 7)),
-        chest: 95.0,
-        waist: 82.0,
-        hips: 98.0,
-        biceps: 35.0,
-        thighs: 58.0,
-      ),
-      BodyMeasurement(
-        date: DateTime.now(),
-        chest: 96.0,
-        waist: 81.0,
-        hips: 97.5,
-        biceps: 35.5,
-        thighs: 58.5,
-      ),
-    ];
-
-    // Sample weight entries
-    _weightEntries = [
-      WeightEntry(date: DateTime.now().subtract(Duration(days: 30)), weight: 75.0),
-      WeightEntry(date: DateTime.now().subtract(Duration(days: 23)), weight: 74.5),
-      WeightEntry(date: DateTime.now().subtract(Duration(days: 16)), weight: 74.0),
-      WeightEntry(date: DateTime.now().subtract(Duration(days: 9)), weight: 73.8),
-      WeightEntry(date: DateTime.now().subtract(Duration(days: 2)), weight: 73.5),
-      WeightEntry(date: DateTime.now(), weight: 73.2),
     ];
 
     // Sample personal records
@@ -110,7 +129,15 @@ class ProgressProvider with ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    await Future.delayed(Duration(seconds: 1));
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      await Supabase.instance.client.from('progress_entries').insert({
+        'user_id': user.id,
+        'type': 'weight',
+        'value': weight,
+        'unit': 'kg',
+      });
+    }
 
     _weightEntries.add(WeightEntry(date: DateTime.now(), weight: weight));
     _weightEntries.sort((a, b) => a.date.compareTo(b.date));

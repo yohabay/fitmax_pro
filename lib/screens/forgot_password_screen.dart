@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/user_provider.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   @override
@@ -24,13 +26,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _isLoading = true;
     });
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      await userProvider.resetPassword(_emailController.text);
 
-    setState(() {
-      _isLoading = false;
-      _emailSent = true;
-    });
+      setState(() {
+        _isLoading = false;
+        _emailSent = true;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send reset email: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override

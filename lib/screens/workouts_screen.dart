@@ -1,9 +1,155 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:video_player/video_player.dart';
 import '../providers/workout_provider.dart';
 import '../models/workout.dart';
 import '../utils/theme.dart';
 import 'ai_chat_screen.dart';
+
+class VideoPlayerWidget extends StatefulWidget {
+  final String videoUrl;
+  final double height;
+
+  const VideoPlayerWidget({
+    Key? key,
+    required this.videoUrl,
+    required this.height,
+  }) : super(key: key);
+
+  @override
+  _VideoPlayerWidgetState createState() => _VideoPlayerWidgetState();
+}
+
+class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+  late VideoPlayerController _controller;
+  bool _isInitialized = false;
+  bool _isPlaying = false;
+  bool _showControls = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    if (widget.videoUrl.startsWith('assets/')) {
+      _controller = VideoPlayerController.asset(widget.videoUrl);
+    } else {
+      _controller = VideoPlayerController.network(widget.videoUrl);
+    }
+    try {
+      await _controller.initialize();
+      await _controller.setLooping(true);
+      await _controller.setVolume(0.0); // Start muted
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      print('Error initializing video: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _togglePlayPause() {
+    setState(() {
+      if (_controller.value.isPlaying) {
+        _controller.pause();
+        _isPlaying = false;
+      } else {
+        _controller.play();
+        _isPlaying = true;
+      }
+    });
+  }
+
+  void _toggleMute() {
+    setState(() {
+      if (_controller.value.volume > 0) {
+        _controller.setVolume(0.0);
+      } else {
+        _controller.setVolume(1.0);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return Container(
+        height: widget.height,
+        color: Colors.black,
+        child: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _showControls = !_showControls;
+        });
+      },
+      child: Stack(
+        children: [
+          SizedBox(
+            height: widget.height,
+            width: double.infinity,
+            child: VideoPlayer(_controller),
+          ),
+          if (_showControls)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withOpacity(0.3),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: _togglePlayPause,
+                        icon: Icon(
+                          _isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      IconButton(
+                        onPressed: _toggleMute,
+                        icon: Icon(
+                          _controller.value.volume > 0 ? Icons.volume_up : Icons.volume_off,
+                          color: Colors.white,
+                          size: 32,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          if (!_isPlaying && !_showControls)
+            Positioned.fill(
+              child: Center(
+                child: Icon(
+                  Icons.play_circle_outline,
+                  color: Colors.white.withOpacity(0.8),
+                  size: 64,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SliverHeaderDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
@@ -699,7 +845,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Workout image
+          // Workout media (video or image)
           ClipRRect(
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(16),
@@ -709,10 +855,15 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
                 SizedBox(
                   height: 200,
                   width: double.infinity,
-                  child: Image.asset(
-                    workout.imageUrl,
-                    fit: BoxFit.cover,
-                  ),
+                  child: workout.videoUrl != null && workout.videoUrl!.isNotEmpty
+                      ? VideoPlayerWidget(
+                          videoUrl: workout.videoUrl!,
+                          height: 200,
+                        )
+                      : Image.asset(
+                          workout.imageUrl,
+                          fit: BoxFit.cover,
+                        ),
                 ),
                 // Gradient overlay
                 Container(
