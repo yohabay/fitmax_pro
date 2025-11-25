@@ -109,7 +109,7 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/logo.png"
+  image_path: "assets/logo.jpg"
   adaptive_icon_background: "#FFFFFF"
   min_sdk_android: 21 # android min sdk min:16, default 21
 
@@ -141,7 +141,7 @@ flutter:
     - assets/icons/
     - assets/fonts/
     - assets/videos/
-    - assets/logo.png
+    - assets/logo.jpg
 
   fonts:
     - family: Poppins

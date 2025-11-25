@@ -1,21 +1,27 @@
--- Apply this SQL script to your Supabase project
--- Go to: https://supabase.com/dashboard/project/dmqpccujabjustgkzhbn/sql
--- Copy and paste this entire script into the SQL Editor and run it
+-- Fresh Schema Setup - Run this to completely reset the database
+-- This will drop ALL existing tables and recreate them from scratch
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Drop existing tables if they exist (for clean setup)
+-- Drop ALL existing tables in correct order (reverse dependencies)
+DROP TABLE IF EXISTS blocks CASCADE;
+DROP TABLE IF EXISTS reports CASCADE;
+DROP TABLE IF EXISTS chat_messages CASCADE;
+DROP TABLE IF EXISTS follows CASCADE;
 DROP TABLE IF EXISTS user_settings CASCADE;
 DROP TABLE IF EXISTS challenges CASCADE;
 DROP TABLE IF EXISTS friends CASCADE;
 DROP TABLE IF EXISTS comments CASCADE;
+DROP TABLE IF EXISTS post_likes CASCADE;
 DROP TABLE IF EXISTS posts CASCADE;
 DROP TABLE IF EXISTS progress_entries CASCADE;
 DROP TABLE IF EXISTS meals CASCADE;
 DROP TABLE IF EXISTS user_favorites CASCADE;
 DROP TABLE IF EXISTS workouts CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
+
+-- Recreate all tables
 
 -- Profiles table
 CREATE TABLE profiles (
@@ -66,7 +72,7 @@ CREATE TABLE workouts (
 -- User favorites
 CREATE TABLE user_favorites (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id TEXT DEFAULT 'demo_user', -- Allow demo favorites without profile
+  user_id TEXT DEFAULT 'demo_user',
   workout_id UUID REFERENCES workouts(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, workout_id)
@@ -75,7 +81,7 @@ CREATE TABLE user_favorites (
 -- Meals table
 CREATE TABLE meals (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id TEXT DEFAULT 'demo_user', -- Allow demo meals without profile
+  user_id TEXT DEFAULT 'demo_user',
   meal_type TEXT NOT NULL,
   food_name TEXT NOT NULL,
   calories INTEGER NOT NULL,
@@ -89,8 +95,8 @@ CREATE TABLE meals (
 -- Progress entries
 CREATE TABLE progress_entries (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id TEXT DEFAULT 'demo_user', -- Allow demo progress without profile
-  type TEXT NOT NULL, -- 'weight', 'measurement', 'workout', etc.
+  user_id TEXT DEFAULT 'demo_user',
+  type TEXT NOT NULL,
   value DOUBLE PRECISION NOT NULL,
   unit TEXT NOT NULL,
   date DATE DEFAULT CURRENT_DATE,
@@ -98,22 +104,13 @@ CREATE TABLE progress_entries (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Posts table (no foreign key for demo posts)
+-- Posts table
 CREATE TABLE posts (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  user_id TEXT DEFAULT 'demo_user', -- Allow demo posts without profile
+  user_id TEXT DEFAULT 'demo_user',
   content TEXT NOT NULL,
   image_url TEXT,
   likes INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Comments table
-CREATE TABLE comments (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-  user_id TEXT DEFAULT 'demo_user', -- Allow demo comments without profile
-  content TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -126,6 +123,15 @@ CREATE TABLE post_likes (
   UNIQUE(post_id, user_id)
 );
 
+-- Comments table
+CREATE TABLE comments (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+  user_id TEXT DEFAULT 'demo_user',
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Friends table
 CREATE TABLE friends (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
@@ -135,7 +141,7 @@ CREATE TABLE friends (
   friend_avatar TEXT,
   friend_level INTEGER DEFAULT 1,
   friend_streak INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'accepted', -- pending, accepted, blocked
+  status TEXT DEFAULT 'accepted',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -145,6 +151,7 @@ CREATE TABLE challenges (
   title TEXT NOT NULL,
   description TEXT NOT NULL,
   image_url TEXT,
+  video_url TEXT,
   start_date DATE DEFAULT CURRENT_DATE,
   end_date DATE,
   participants INTEGER DEFAULT 0,
@@ -175,7 +182,7 @@ CREATE TABLE user_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Follows table
+-- Follows table (using usernames for demo)
 CREATE TABLE follows (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   follower_id TEXT DEFAULT 'demo_user',
@@ -190,7 +197,7 @@ CREATE TABLE chat_messages (
   sender_id TEXT DEFAULT 'demo_user',
   receiver_id TEXT NOT NULL,
   content TEXT NOT NULL,
-  message_type TEXT DEFAULT 'text', -- text, image, video, workout
+  message_type TEXT DEFAULT 'text',
   media_url TEXT,
   is_read BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -202,9 +209,9 @@ CREATE TABLE reports (
   reporter_id TEXT DEFAULT 'demo_user',
   reported_user_id TEXT,
   reported_post_id UUID,
-  report_type TEXT NOT NULL, -- user, post
+  report_type TEXT NOT NULL,
   reason TEXT NOT NULL,
-  status TEXT DEFAULT 'pending', -- pending, reviewed, resolved
+  status TEXT DEFAULT 'pending',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -217,28 +224,98 @@ CREATE TABLE blocks (
   UNIQUE(blocker_id, blocked_id)
 );
 
--- Enable RLS
+-- User challenges table (tracks which users joined which challenges)
+-- Note: This table may already exist, so using CREATE TABLE IF NOT EXISTS
+CREATE TABLE IF NOT EXISTS user_challenges (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT DEFAULT 'demo_user',
+  challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  progress DOUBLE PRECISION DEFAULT 0.0,
+  UNIQUE(user_id, challenge_id)
+);
+
+-- Workout sessions table (tracks completed workouts)
+CREATE TABLE IF NOT EXISTS workout_sessions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT DEFAULT 'demo_user',
+  workout_name TEXT NOT NULL,
+  duration INTEGER NOT NULL, -- in minutes
+  calories_burned INTEGER NOT NULL,
+  exercises JSONB DEFAULT '[]',
+  completed_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Personal records table (tracks PRs for exercises)
+CREATE TABLE IF NOT EXISTS personal_records (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  user_id TEXT DEFAULT 'demo_user',
+  exercise_name TEXT NOT NULL,
+  value DOUBLE PRECISION NOT NULL,
+  unit TEXT NOT NULL,
+  achieved_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, exercise_name)
+);
+
+-- Enable RLS on all tables
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE meals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE progress_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE friends ENABLE ROW LEVEL SECURITY;
 ALTER TABLE challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
-
--- Enable RLS for new tables
 ALTER TABLE follows ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE blocks ENABLE ROW LEVEL SECURITY;
+-- Enable RLS (skip if already enabled)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = 'user_challenges'
+        AND n.nspname = 'public'
+        AND c.relrowsecurity = true
+    ) THEN
+        ALTER TABLE user_challenges ENABLE ROW LEVEL SECURITY;
+    END IF;
+END $$;
+-- Enable RLS for new tables (skip if already enabled)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = 'workout_sessions'
+        AND n.nspname = 'public'
+        AND c.relrowsecurity = true
+    ) THEN
+        ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_class c
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relname = 'personal_records'
+        AND n.nspname = 'public'
+        AND c.relrowsecurity = true
+    ) THEN
+        ALTER TABLE personal_records ENABLE ROW LEVEL SECURITY;
+    END IF;
+END $$;
 
 -- RLS Policies
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Anyone can view workouts" ON workouts FOR SELECT USING (true);
 
 CREATE POLICY "Users can view own favorites" ON user_favorites FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 CREATE POLICY "Users can insert own favorites" ON user_favorites FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
@@ -257,37 +334,29 @@ CREATE POLICY "Users can insert own posts" ON posts FOR INSERT WITH CHECK (auth.
 CREATE POLICY "Users can update own posts" ON posts FOR UPDATE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 CREATE POLICY "Users can delete own posts" ON posts FOR DELETE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 
+CREATE POLICY "Users can view post likes" ON post_likes FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+CREATE POLICY "Users can insert own likes" ON post_likes FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
+CREATE POLICY "Users can delete own likes" ON post_likes FOR DELETE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+
 CREATE POLICY "Anyone can view comments" ON comments FOR SELECT USING (true);
 CREATE POLICY "Users can insert own comments" ON comments FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
 CREATE POLICY "Users can update own comments" ON comments FOR UPDATE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 CREATE POLICY "Users can delete own comments" ON comments FOR DELETE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 
-CREATE POLICY "Users can view post likes" ON post_likes FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
-CREATE POLICY "Users can insert own likes" ON post_likes FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
-CREATE POLICY "Users can delete own likes" ON post_likes FOR DELETE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
-
--- Allow public read for workouts
-CREATE POLICY "Anyone can view workouts" ON workouts FOR SELECT USING (true);
-
--- Friends policies
 CREATE POLICY "Users can view own friends" ON friends FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 CREATE POLICY "Users can manage own friends" ON friends FOR ALL USING (auth.uid()::text = user_id OR user_id = 'demo_user');
 
--- Challenges policies
 CREATE POLICY "Anyone can view challenges" ON challenges FOR SELECT USING (true);
 CREATE POLICY "Users can join challenges" ON challenges FOR UPDATE USING (true);
 
--- User settings policies
 CREATE POLICY "Users can view own settings" ON user_settings FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can insert own settings" ON user_settings FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own settings" ON user_settings FOR UPDATE USING (auth.uid() = user_id);
 
--- Follows policies
 CREATE POLICY "Users can view own follows" ON follows FOR SELECT USING (auth.uid()::text = follower_id OR follower_id = 'demo_user');
 CREATE POLICY "Users can follow others" ON follows FOR INSERT WITH CHECK (auth.uid()::text = follower_id OR follower_id = 'demo_user');
 CREATE POLICY "Users can unfollow" ON follows FOR DELETE USING (auth.uid()::text = follower_id OR follower_id = 'demo_user');
 
--- Chat messages policies
 CREATE POLICY "Users can view their chat messages" ON chat_messages FOR SELECT USING (
   auth.uid()::text = sender_id OR auth.uid()::text = receiver_id OR
   sender_id = 'demo_user' OR receiver_id = 'demo_user'
@@ -296,14 +365,47 @@ CREATE POLICY "Users can send messages" ON chat_messages FOR INSERT WITH CHECK (
   auth.uid()::text = sender_id OR sender_id = 'demo_user'
 );
 
--- Reports policies
 CREATE POLICY "Users can view own reports" ON reports FOR SELECT USING (auth.uid()::text = reporter_id OR reporter_id = 'demo_user');
 CREATE POLICY "Users can create reports" ON reports FOR INSERT WITH CHECK (auth.uid()::text = reporter_id OR reporter_id = 'demo_user');
 
--- Blocks policies
 CREATE POLICY "Users can view own blocks" ON blocks FOR SELECT USING (auth.uid()::text = blocker_id OR blocker_id = 'demo_user');
 CREATE POLICY "Users can block others" ON blocks FOR INSERT WITH CHECK (auth.uid()::text = blocker_id OR blocker_id = 'demo_user');
 CREATE POLICY "Users can unblock" ON blocks FOR DELETE USING (auth.uid()::text = blocker_id OR blocker_id = 'demo_user');
+
+-- Create policies (skip if they already exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_challenges' AND policyname = 'Users can view own challenge participations') THEN
+        CREATE POLICY "Users can view own challenge participations" ON user_challenges FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_challenges' AND policyname = 'Users can join challenges') THEN
+        CREATE POLICY "Users can join challenges" ON user_challenges FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'user_challenges' AND policyname = 'Users can leave challenges') THEN
+        CREATE POLICY "Users can leave challenges" ON user_challenges FOR DELETE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+END $$;
+
+-- Create policies for new tables (skip if they already exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workout_sessions' AND policyname = 'Users can view own workout sessions') THEN
+        CREATE POLICY "Users can view own workout sessions" ON workout_sessions FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workout_sessions' AND policyname = 'Users can insert own workout sessions') THEN
+        CREATE POLICY "Users can insert own workout sessions" ON workout_sessions FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'personal_records' AND policyname = 'Users can view own personal records') THEN
+        CREATE POLICY "Users can view own personal records" ON personal_records FOR SELECT USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'personal_records' AND policyname = 'Users can insert own personal records') THEN
+        CREATE POLICY "Users can insert own personal records" ON personal_records FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'personal_records' AND policyname = 'Users can update own personal records') THEN
+        CREATE POLICY "Users can update own personal records" ON personal_records FOR UPDATE USING (auth.uid()::text = user_id OR user_id = 'demo_user');
+    END IF;
+END $$;
 
 -- Function to handle user profile creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -387,7 +489,45 @@ INSERT INTO friends (user_id, friend_id, friend_name, friend_avatar, friend_leve
 ('00000000-0000-0000-0000-000000000000', 'friend3', 'Sarah Johnson', 'assets/images/fitness-woman-2.png', 15, 22);
 
 -- Sample challenges
-INSERT INTO challenges (title, description, participants, days_left, progress, rules, rewards) VALUES
-('30-Day Push-up Challenge', 'Complete 1000 push-ups in 30 days', 156, 12, 0.65, '{"daily_goal": 33, "total_goal": 1000}', '["Champion Badge", "1000 Push-ups T-Shirt"]'),
-('Summer Shred', 'Lose 10 pounds in 8 weeks', 89, 25, 0.3, '{"weekly_goal": 1.25, "total_goal": 10}', '["Shred Master Badge", "Protein Shaker"]'),
-('Marathon Training', 'Run 26.2 miles in 12 weeks', 234, 45, 0.1, '{"weekly_mileage": 25, "long_run": 16}', '["Marathon Finisher Medal", "Running Shoes"]');
+INSERT INTO challenges (title, description, video_url, participants, days_left, progress, rules, rewards) VALUES
+('30-Day Push-up Challenge', 'Complete 1000 push-ups in 30 days', 'assets/videos/1.mp4', 156, 12, 0.65, '{"daily_goal": 33, "total_goal": 1000}', '["Champion Badge", "1000 Push-ups T-Shirt"]'),
+('Summer Shred', 'Lose 10 pounds in 8 weeks', 'assets/videos/4.mp4', 89, 25, 0.3, '{"weekly_goal": 1.25, "total_goal": 10}', '["Shred Master Badge", "Protein Shaker"]'),
+('Marathon Training', 'Run 26.2 miles in 12 weeks', 'assets/videos/5.mp4', 234, 45, 0.1, '{"weekly_mileage": 25, "long_run": 16}', '["Marathon Finisher Medal", "Running Shoes"]');
+
+-- Sample workout sessions (only insert if not exists)
+INSERT INTO workout_sessions (user_id, workout_name, duration, calories_burned, exercises, completed_at)
+SELECT 'demo_user', 'Upper Body Strength', 45, 320, '[{"name": "Bench Press", "sets": 3, "reps": 10, "weight": 80}, {"name": "Pull-ups", "sets": 3, "reps": 8, "weight": 0}]'::jsonb, NOW() - INTERVAL '1 day'
+WHERE NOT EXISTS (SELECT 1 FROM workout_sessions WHERE user_id = 'demo_user' AND workout_name = 'Upper Body Strength');
+
+INSERT INTO workout_sessions (user_id, workout_name, duration, calories_burned, exercises, completed_at)
+SELECT 'demo_user', 'Cardio HIIT', 30, 280, '[]'::jsonb, NOW() - INTERVAL '3 days'
+WHERE NOT EXISTS (SELECT 1 FROM workout_sessions WHERE user_id = 'demo_user' AND workout_name = 'Cardio HIIT');
+
+INSERT INTO workout_sessions (user_id, workout_name, duration, calories_burned, exercises, completed_at)
+SELECT 'demo_user', 'Full Body Circuit', 50, 400, '[{"name": "Squats", "sets": 4, "reps": 15, "weight": 0}, {"name": "Push-ups", "sets": 3, "reps": 12, "weight": 0}]'::jsonb, NOW() - INTERVAL '5 days'
+WHERE NOT EXISTS (SELECT 1 FROM workout_sessions WHERE user_id = 'demo_user' AND workout_name = 'Full Body Circuit');
+
+INSERT INTO workout_sessions (user_id, workout_name, duration, calories_burned, exercises, completed_at)
+SELECT 'demo_user', 'Morning Yoga', 25, 150, '[]'::jsonb, NOW() - INTERVAL '7 days'
+WHERE NOT EXISTS (SELECT 1 FROM workout_sessions WHERE user_id = 'demo_user' AND workout_name = 'Morning Yoga');
+
+-- Sample personal records (only insert if not exists)
+INSERT INTO personal_records (user_id, exercise_name, value, unit, achieved_at)
+SELECT 'demo_user', 'Bench Press', 85.0, 'kg', NOW() - INTERVAL '2 days'
+WHERE NOT EXISTS (SELECT 1 FROM personal_records WHERE user_id = 'demo_user' AND exercise_name = 'Bench Press');
+
+INSERT INTO personal_records (user_id, exercise_name, value, unit, achieved_at)
+SELECT 'demo_user', 'Squat', 120.0, 'kg', NOW() - INTERVAL '5 days'
+WHERE NOT EXISTS (SELECT 1 FROM personal_records WHERE user_id = 'demo_user' AND exercise_name = 'Squat');
+
+INSERT INTO personal_records (user_id, exercise_name, value, unit, achieved_at)
+SELECT 'demo_user', 'Deadlift', 140.0, 'kg', NOW() - INTERVAL '1 week'
+WHERE NOT EXISTS (SELECT 1 FROM personal_records WHERE user_id = 'demo_user' AND exercise_name = 'Deadlift');
+
+INSERT INTO personal_records (user_id, exercise_name, value, unit, achieved_at)
+SELECT 'demo_user', 'Pull-ups', 12.0, 'reps', NOW() - INTERVAL '3 days'
+WHERE NOT EXISTS (SELECT 1 FROM personal_records WHERE user_id = 'demo_user' AND exercise_name = 'Pull-ups');
+
+INSERT INTO personal_records (user_id, exercise_name, value, unit, achieved_at)
+SELECT 'demo_user', '5K Run', 22.5, 'min', NOW() - INTERVAL '1 week'
+WHERE NOT EXISTS (SELECT 1 FROM personal_records WHERE user_id = 'demo_user' AND exercise_name = '5K Run');

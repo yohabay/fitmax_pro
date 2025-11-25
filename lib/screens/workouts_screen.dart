@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 import '../providers/workout_provider.dart';
+import '../providers/progress_provider.dart';
 import '../models/workout.dart';
+import '../models/progress.dart';
 import '../utils/theme.dart';
 import 'ai_chat_screen.dart';
+import 'workout_session_screen.dart';
 
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
@@ -173,6 +176,10 @@ class _SliverHeaderDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class WorkoutsScreen extends StatefulWidget {
+  final int initialTabIndex;
+
+  const WorkoutsScreen({Key? key, this.initialTabIndex = 0}) : super(key: key);
+
   @override
   _WorkoutsScreenState createState() => _WorkoutsScreenState();
 }
@@ -195,7 +202,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTabIndex);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {
@@ -673,7 +680,14 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
           ),
           const SizedBox(height: 12),
 
-          ...List.generate(5, (index) {
+          ...Provider.of<ProgressProvider>(context).workoutSessions.map((session) {
+            final daysAgo = DateTime.now().difference(session.date).inDays;
+            final timeAgo = daysAgo == 0
+                ? 'Today'
+                : daysAgo == 1
+                    ? 'Yesterday'
+                    : '$daysAgo days ago';
+
             return Card(
               margin: const EdgeInsets.only(bottom: 12),
               color: colorScheme.surface,
@@ -697,136 +711,164 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
                   ),
                 ),
                 title: Text(
-                  'Full Body Strength ${index + 1}',
+                  session.workoutName,
                   style: TextStyle(
                     color: colorScheme.onSurface,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 subtitle: Text(
-                  'Yesterday • 45 min • 320 calories',
+                  '$timeAgo • ${session.duration} min • ${session.caloriesBurned} calories',
                   style: TextStyle(color: colorScheme.onSurfaceVariant),
                 ),
                 trailing: IconButton(
-                  onPressed: () {},
-                  icon: Icon(Icons.play_arrow, color: colorScheme.primary),
+                  onPressed: () => _showWorkoutDetails(context, session),
+                  icon: Icon(Icons.replay, color: colorScheme.primary),
+                  tooltip: 'View workout details',
                 ),
               ),
             );
-          }),
+          }).toList(),
 
           const SizedBox(height: 24),
 
           // Personal records
-          Card(
-            color: colorScheme.surface,
-            elevation: 1,
-            shadowColor: colorScheme.shadow.withOpacity(0.1),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: colorScheme.surfaceVariant.withOpacity(0.5)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.emoji_events,
-                        color: colorScheme.tertiary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Personal Records',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
+          Consumer<ProgressProvider>(
+            builder: (context, progressProvider, child) {
+              final records = progressProvider.personalRecords.entries.toList();
+              if (records.isEmpty) {
+                return Card(
+                  color: colorScheme.surface,
+                  elevation: 1,
+                  shadowColor: colorScheme.shadow.withOpacity(0.1),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(color: colorScheme.surfaceVariant.withOpacity(0.5)),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceVariant.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.emoji_events,
+                              color: colorScheme.tertiary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Personal Records',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        Center(
                           child: Column(
                             children: [
-                              Text(
-                                '185 lbs',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
-                                ),
+                              Icon(
+                                Icons.fitness_center,
+                                size: 48,
+                                color: colorScheme.onSurfaceVariant,
                               ),
+                              const SizedBox(height: 8),
                               Text(
-                                'Deadlift PR',
+                                'No personal records yet',
                                 style: TextStyle(
-                                  fontSize: 14,
                                   color: colorScheme.onSurfaceVariant,
+                                  fontSize: 16,
                                 ),
                               ),
+                              const SizedBox(height: 4),
                               Text(
-                                'Set 3 days ago',
+                                'Complete workouts to set your first PR!',
                                 style: TextStyle(
-                                  fontSize: 12,
                                   color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
+              return Card(
+                color: colorScheme.surface,
+                elevation: 1,
+                shadowColor: colorScheme.shadow.withOpacity(0.1),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: colorScheme.surfaceVariant.withOpacity(0.5)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.emoji_events,
+                            color: colorScheme.tertiary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Personal Records',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surfaceVariant.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            children: [
-                              Text(
-                                '2:45',
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
+                      const SizedBox(height: 16),
+                      ...List.generate(
+                        (records.length / 2).ceil(),
+                        (index) {
+                          final firstIndex = index * 2;
+                          final secondIndex = firstIndex + 1;
+
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: index < (records.length / 2).ceil() - 1 ? 12 : 0),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _buildPersonalRecordCard(
+                                    records[firstIndex].key,
+                                    records[firstIndex].value,
+                                    colorScheme,
+                                  ),
                                 ),
-                              ),
-                              Text(
-                                'Plank Hold',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              Text(
-                                'Set last week',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: colorScheme.onSurfaceVariant.withOpacity(0.7),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                                if (secondIndex < records.length) ...[
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _buildPersonalRecordCard(
+                                      records[secondIndex].key,
+                                      records[secondIndex].value,
+                                      colorScheme,
+                                    ),
+                                  ),
+                                ] else
+                                  const Spacer(),
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -1017,7 +1059,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
                   children: [
                     Expanded(
                       child: OutlinedButton(
-                        onPressed: () {},
+                        onPressed: () => _showWorkoutPreview(context, workout),
                         style: OutlinedButton.styleFrom(
                           side: BorderSide(color: colorScheme.primary.withOpacity(0.5)),
                           foregroundColor: colorScheme.primary,
@@ -1031,7 +1073,7 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () {},
+                        onPressed: () => _startWorkout(context, workout),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Start'),
                         style: ElevatedButton.styleFrom(
@@ -1090,5 +1132,655 @@ class _WorkoutsScreenState extends State<WorkoutsScreen>
       default:
         return Colors.grey.shade400;
     }
+  }
+
+  void _showWorkoutDetails(BuildContext context, WorkoutSession session) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final daysAgo = DateTime.now().difference(session.date).inDays;
+    final timeAgo = daysAgo == 0
+        ? 'Today'
+        : daysAgo == 1
+            ? 'Yesterday'
+            : '$daysAgo days ago';
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: colorScheme.onPrimary.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.fitness_center,
+                              color: colorScheme.onPrimary,
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  session.workoutName,
+                                  style: TextStyle(
+                                    color: colorScheme.onPrimary,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  timeAgo,
+                                  style: TextStyle(
+                                    color: colorScheme.onPrimary.withOpacity(0.8),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: Icon(
+                              Icons.close,
+                              color: colorScheme.onPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildSessionStat(
+                            Icons.access_time,
+                            '${session.duration} min',
+                            colorScheme,
+                          ),
+                          _buildSessionStat(
+                            Icons.local_fire_department,
+                            '${session.caloriesBurned} cal',
+                            colorScheme,
+                          ),
+                          _buildSessionStat(
+                            Icons.calendar_today,
+                            session.date.toString().split(' ')[0],
+                            colorScheme,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Exercises
+                if (session.exercises.isNotEmpty)
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        Text(
+                          'Exercises Completed',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ...session.exercises.map((exercise) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            color: colorScheme.surfaceVariant.withOpacity(0.3),
+                            child: ListTile(
+                              leading: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Icon(
+                                  Icons.fitness_center,
+                                  color: colorScheme.primary,
+                                  size: 20,
+                                ),
+                              ),
+                              title: Text(
+                                exercise.name,
+                                style: TextStyle(
+                                  color: colorScheme.onSurface,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              subtitle: Text(
+                                '${exercise.sets} sets × ${exercise.reps} reps${exercise.weight != null ? ' @ ${exercise.weight}' : ''}',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ],
+                    ),
+                  ),
+
+                // Actions
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: colorScheme.surfaceVariant.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // Find and start the workout
+                            final workoutProvider = Provider.of<WorkoutProvider>(context, listen: false);
+                            final workout = workoutProvider.workouts.firstWhere(
+                              (w) => w.title == session.workoutName,
+                              orElse: () => workoutProvider.workouts.first, // fallback to first workout
+                            );
+                            // Navigate to workout session
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => WorkoutSessionScreen(workout: workout),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.replay),
+                          label: const Text('Repeat Workout'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorScheme.primary,
+                            side: BorderSide(color: colorScheme.primary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // Share workout results
+                            final shareText = '🏋️ I just completed "${session.workoutName}" in ${session.duration} minutes, burning ${session.caloriesBurned} calories! 💪 #FitMaxPro';
+                            // Use share_plus package if available
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Workout shared!'),
+                                action: SnackBarAction(
+                                  label: 'Copy',
+                                  onPressed: () {
+                                    // Could copy to clipboard here
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.share),
+                          label: const Text('Share'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colorScheme.primary,
+                            foregroundColor: colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSessionStat(IconData icon, String text, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: colorScheme.onPrimary,
+          size: 24,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: colorScheme.onPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPersonalRecordCard(String exercise, double value, ColorScheme colorScheme) {
+    // Format the value based on exercise type
+    String formattedValue;
+    String unit = '';
+
+    if (exercise.toLowerCase().contains('run') || exercise.toLowerCase().contains('time')) {
+      // Time-based exercises (like 5K Run in minutes)
+      final minutes = value.toInt();
+      final seconds = ((value - minutes) * 60).toInt();
+      formattedValue = '${minutes}:${seconds.toString().padLeft(2, '0')}';
+      unit = 'min';
+    } else if (exercise.toLowerCase().contains('plank') || exercise.toLowerCase().contains('hold')) {
+      // Time-based exercises (like Plank Hold in seconds)
+      final minutes = (value / 60).floor();
+      final seconds = (value % 60).toInt();
+      formattedValue = minutes > 0 ? '${minutes}:${seconds.toString().padLeft(2, '0')}' : '${seconds}s';
+      unit = '';
+    } else {
+      // Weight-based exercises
+      formattedValue = value.toStringAsFixed(value % 1 == 0 ? 0 : 1);
+      unit = 'lbs';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceVariant.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Text(
+            formattedValue,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          Text(
+            exercise,
+            style: TextStyle(
+              fontSize: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (unit.isNotEmpty)
+            Text(
+              unit,
+              style: TextStyle(
+                fontSize: 12,
+                color: colorScheme.onSurfaceVariant.withOpacity(0.7),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showWorkoutPreview(BuildContext context, Workout workout) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.8,
+              maxWidth: MediaQuery.of(context).size.width * 0.9,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Header with video/image
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                        ),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 200,
+                          child: workout.videoUrl != null && workout.videoUrl!.isNotEmpty
+                              ? VideoPlayerWidget(
+                                  videoUrl: workout.videoUrl!,
+                                  height: 200,
+                                )
+                              : Image.asset(
+                                  workout.imageUrl,
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
+                      ),
+                      // Gradient overlay
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.5),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Close button
+                      Positioned(
+                        top: 16,
+                        right: 16,
+                        child: IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.black.withOpacity(0.5),
+                          ),
+                        ),
+                      ),
+                      // Workout info overlay
+                      Positioned(
+                        bottom: 16,
+                        left: 16,
+                        right: 16,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              workout.title,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              'by ${workout.trainer}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Workout details
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Stats
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildWorkoutStat(
+                              Icons.access_time,
+                              workout.duration,
+                              colorScheme,
+                            ),
+                            _buildWorkoutStat(
+                              Icons.local_fire_department,
+                              '${workout.calories} cal',
+                              colorScheme,
+                            ),
+                            _buildWorkoutStat(
+                              Icons.star,
+                              '${workout.rating}',
+                              colorScheme,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Description
+                        Text(
+                          'Description',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          workout.description,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        // Exercises
+                        if (workout.exercises.isNotEmpty) ...[
+                          Text(
+                            'Exercises',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...workout.exercises.map((exercise) {
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              color: colorScheme.surfaceVariant.withOpacity(0.3),
+                              child: ListTile(
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primary.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.fitness_center,
+                                    color: colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                ),
+                                title: Text(
+                                  exercise.name,
+                                  style: TextStyle(
+                                    color: colorScheme.onSurface,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  '${exercise.sets} sets × ${exercise.reps} reps${exercise.weight != null ? ' @ ${exercise.weight}' : ''}',
+                                  style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ],
+
+                        // Completion stats
+                        const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surfaceVariant.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Completed by',
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              Text(
+                                '${workout.completions} users',
+                                style: TextStyle(
+                                  color: colorScheme.onSurface,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Actions
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: colorScheme.surfaceVariant.withOpacity(0.5),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            _startWorkout(context, workout);
+                          },
+                          icon: const Icon(Icons.play_arrow),
+                          label: const Text('Start Workout'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: colorScheme.primary,
+                            side: BorderSide(color: colorScheme.primary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                            // Share workout
+                            final shareText = '🏋️ Check out this workout: "${workout.title}" by ${workout.trainer}! 💪 #FitMaxPro';
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('Workout shared!'),
+                                action: SnackBarAction(
+                                  label: 'Copy',
+                                  onPressed: () {
+                                    // Could copy to clipboard here
+                                  },
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.share),
+                          label: const Text('Share'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colorScheme.primary,
+                            foregroundColor: colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _startWorkout(BuildContext context, Workout workout) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WorkoutSessionScreen(workout: workout),
+      ),
+    );
+  }
+
+  Widget _buildWorkoutStat(IconData icon, String text, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        Icon(
+          icon,
+          color: colorScheme.primary,
+          size: 24,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          text,
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 }

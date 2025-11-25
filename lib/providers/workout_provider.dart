@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/workout.dart';
@@ -85,11 +86,64 @@ class WorkoutProvider with ChangeNotifier {
 
   List<Workout> searchWorkouts(String query) {
     if (query.isEmpty) return _workouts;
-    
+
     return _workouts.where((workout) {
       return workout.title.toLowerCase().contains(query.toLowerCase()) ||
              workout.trainer.toLowerCase().contains(query.toLowerCase()) ||
              workout.category.toLowerCase().contains(query.toLowerCase());
     }).toList();
+  }
+
+  Future<void> populateVideosFromAssets() async {
+    final supabase = Supabase.instance.client;
+
+    // Get all video files from assets/videos/
+    final videoDir = Directory('assets/videos');
+    final videoFiles = videoDir.listSync().where((file) => file.path.endsWith('.mp4')).toList();
+
+    print('Found ${videoFiles.length} video files:');
+    for (var file in videoFiles) {
+      print('- ${file.path}');
+    }
+
+    // Categories for videos
+    final categories = ['strength', 'cardio', 'flexibility', 'bodyweight'];
+    final difficulties = ['Beginner', 'Intermediate', 'Advanced'];
+
+    // Add videos to database
+    for (int i = 0; i < videoFiles.length; i++) {
+      final videoFile = videoFiles[i];
+      final videoName = videoFile.path.split('/').last.replaceAll('.mp4', '');
+      final category = categories[i % categories.length];
+      final difficulty = difficulties[i % difficulties.length];
+
+      final workoutData = {
+        'title': 'Video Workout ${videoName}',
+        'description': 'Auto-generated workout for video ${videoName}',
+        'duration': '30 min',
+        'difficulty': difficulty,
+        'calories': 250 + (i * 20),
+        'category': category,
+        'image_url': 'assets/images/fitness-man.png', // Default image
+        'video_url': videoFile.path,
+        'rating': 4.5,
+        'completions': 100 + (i * 10),
+        'trainer': 'Auto Trainer',
+        'is_featured': true,
+        'exercises': '[]',
+      };
+
+      try {
+        final response = await supabase.from('workouts').insert(workoutData);
+        print('Added workout: ${workoutData['title']}');
+      } catch (e) {
+        print('Error adding workout ${workoutData['title']}: $e');
+      }
+    }
+
+    print('Finished adding ${videoFiles.length} videos to database');
+
+    // Reload workouts after adding
+    await loadWorkouts();
   }
 }

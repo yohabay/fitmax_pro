@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_code_scanner_plus/qr_code_scanner_plus.dart';
 import '../providers/nutrition_provider.dart';
+import '../providers/progress_provider.dart';
+import '../models/nutrition.dart';
 import 'barcode_scanner_screen.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -461,12 +463,40 @@ class _NutritionScreenState extends State<NutritionScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Intermittent Fasting',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    const Text(
+                      'Intermittent Fasting',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    PopupMenuButton<int>(
+                      onSelected: (hours) => provider.setFastingGoal(hours),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 12, child: Text('12:12 Fast')),
+                        const PopupMenuItem(value: 14, child: Text('14:10 Fast')),
+                        const PopupMenuItem(value: 16, child: Text('16:8 Fast')),
+                        const PopupMenuItem(value: 18, child: Text('18:6 Fast')),
+                        const PopupMenuItem(value: 20, child: Text('20:4 Fast')),
+                      ],
+                      child: Row(
+                        children: [
+                          Text(
+                            '${provider.fastingGoalHours}:${(24 - provider.fastingGoalHours).toString().padLeft(2, '0')}',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const Icon(Icons.arrow_drop_down, color: Colors.blue),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Center(
@@ -475,14 +505,14 @@ class _NutritionScreenState extends State<NutritionScreen>
                       Text(
                         provider.fastingTimer.timeRemaining,
                         style: const TextStyle(
-                          fontSize: 32,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.blue,
                         ),
                       ),
-                      const Text(
-                        'Time remaining in fast',
-                        style: TextStyle(
+                      Text(
+                        provider.isFasting ? 'Time remaining in fast' : 'Ready to start fasting',
+                        style: const TextStyle(
                           fontSize: 14,
                           color: Colors.grey,
                         ),
@@ -493,21 +523,35 @@ class _NutritionScreenState extends State<NutritionScreen>
                         backgroundColor: Colors.grey[300],
                         valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        provider.isFasting
+                            ? '${(provider.fastingTimer.progress * 100).round()}% complete'
+                            : 'Tap Start Fast to begin',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       Row(
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => provider.endFast(),
-                              child: const Text('End Fast'),
+                          if (provider.isFasting) ...[
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => provider.endFast(),
+                                child: const Text('End Fast'),
+                              ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
+                          ],
                           Expanded(
                             child: ElevatedButton.icon(
-                              onPressed: () => provider.setFastingReminder(),
-                              icon: const Icon(Icons.notifications),
-                              label: const Text('Set Reminder'),
+                              onPressed: provider.isFasting
+                                  ? () => provider.endFast()
+                                  : () => provider.startFast(),
+                              icon: Icon(provider.isFasting ? Icons.stop : Icons.play_arrow),
+                              label: Text(provider.isFasting ? 'End Fast' : 'Start Fast'),
                             ),
                           ),
                         ],
@@ -515,6 +559,78 @@ class _NutritionScreenState extends State<NutritionScreen>
                     ],
                   ),
                 ),
+
+                // Fasting History
+                if (provider.fastingHistory.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Recent Fasts',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...provider.fastingHistory.take(3).map((session) {
+                    final duration = session.duration;
+                    final hours = duration.inHours;
+                    final minutes = duration.inMinutes.remainder(60);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[50],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            session.completed ? Icons.check_circle : Icons.cancel,
+                            color: session.completed ? Colors.green : Colors.red,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${hours}h ${minutes}m fast',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  '${session.startTime.day}/${session.startTime.month} ${session.startTime.hour.toString().padLeft(2, '0')}:${session.startTime.minute.toString().padLeft(2, '0')}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: session.completed ? Colors.green[100] : Colors.red[100],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              session.completed ? 'Completed' : 'Incomplete',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: session.completed ? Colors.green[700] : Colors.red[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ],
               ],
             ),
           ),
@@ -698,84 +814,99 @@ class _NutritionScreenState extends State<NutritionScreen>
         const SizedBox(height: 16),
 
         // Weekly summary
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'This Week\'s Summary',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
+        Consumer<ProgressProvider>(
+          builder: (context, progressProvider, child) {
+            final workoutSessions = progressProvider.workoutSessions;
+            final weekSessions = workoutSessions.where((session) {
+              final sessionDate = session.date;
+              final now = DateTime.now();
+              final weekStart = now.subtract(Duration(days: now.weekday - 1));
+              return sessionDate.isAfter(weekStart) || sessionDate.isAtSameMomentAs(weekStart);
+            }).toList();
+
+            final totalCalories = weekSessions.fold<int>(0, (sum, session) => sum + session.caloriesBurned);
+            final daysOnTrack = weekSessions.length; // Could be more sophisticated
+
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.indigo[50],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '6/7',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.indigo[600],
-                              ),
-                            ),
-                            const Text(
-                              'Days on track',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
+                    const Text(
+                      'This Week\'s Summary',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '15,400',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.green[600],
-                              ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.indigo[50],
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            const Text(
-                              'Total calories',
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey,
-                              ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  '$daysOnTrack/7',
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.indigo[600],
+                                  ),
+                                ),
+                                const Text(
+                                  'Workout days',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.green[50],
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  totalCalories.toString(),
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green[600],
+                                  ),
+                                ),
+                                const Text(
+                                  'Calories burned',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
       ],
     );
@@ -825,10 +956,87 @@ class _NutritionScreenState extends State<NutritionScreen>
     final XFile? image = await _picker.pickImage(source: ImageSource.camera);
 
     if (image != null) {
-      print('Image picked: ${image.path}');
-      // Process the image here (e.g., send to a food recognition API)
+      // Show processing dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Analyzing Food'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Processing image...',
+                style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Simulate API processing delay
+      await Future.delayed(const Duration(seconds: 2));
+
+      Navigator.of(context).pop(); // Close processing dialog
+
+      // Show results dialog (in a real app, this would come from API)
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Food Detected'),
+          content: const Text(
+            'We detected "Grilled Chicken Salad". Would you like to add this to your meals, or enter details manually?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _showManualEntry(); // Open manual entry with pre-filled data
+              },
+              child: const Text('Edit Details'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+
+                // Add detected meal
+                final meal = Meal(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  mealType: 'Lunch',
+                  foodName: 'Grilled Chicken Salad',
+                  calories: 350,
+                  time: DateTime.now().toString().split(' ')[1].substring(0, 5),
+                  imageUrl: 'assets/images/placeholder.jpg',
+                  macros: MacroData(
+                    protein: 35.0,
+                    carbs: 15.0,
+                    fat: 18.0,
+                  ),
+                );
+
+                Provider.of<NutritionProvider>(context, listen: false).addMeal(meal);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Grilled Chicken Salad added to your meals!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+              child: const Text('Add Meal'),
+            ),
+          ],
+        ),
+      );
     } else {
-      print('No image picked.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No image selected'),
+          backgroundColor: Colors.orange,
+        ),
+      );
     }
   }
 
@@ -846,8 +1054,7 @@ class _NutritionScreenState extends State<NutritionScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              print('AI Meal Plan button pressed!');
-              // Add meal planning logic
+              _generateMealPlan();
             },
             child: const Text('Generate Plan'),
           ),
@@ -856,11 +1063,342 @@ class _NutritionScreenState extends State<NutritionScreen>
     );
   }
 
+  void _generateMealPlan() {
+    // Sample meal suggestions based on current nutrition data
+    final nutritionProvider = Provider.of<NutritionProvider>(context, listen: false);
+    final currentCalories = nutritionProvider.dailyCalories.consumed;
+    final remainingCalories = nutritionProvider.dailyCalories.remaining;
+
+    List<Map<String, dynamic>> mealSuggestions = [
+      {
+        'name': 'Grilled Chicken Breast',
+        'calories': 165,
+        'protein': 31,
+        'carbs': 0,
+        'fat': 3.6,
+        'mealType': 'Lunch'
+      },
+      {
+        'name': 'Quinoa Salad',
+        'calories': 222,
+        'protein': 8,
+        'carbs': 39,
+        'fat': 3.5,
+        'mealType': 'Lunch'
+      },
+      {
+        'name': 'Greek Yogurt Parfait',
+        'calories': 180,
+        'protein': 15,
+        'carbs': 25,
+        'fat': 2,
+        'mealType': 'Snack'
+      },
+      {
+        'name': 'Salmon with Vegetables',
+        'calories': 280,
+        'protein': 25,
+        'carbs': 10,
+        'fat': 18,
+        'mealType': 'Dinner'
+      },
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.restaurant_menu,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Meal Suggestions',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'Based on your remaining ${remainingCalories} calories',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary.withOpacity(0.8),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(
+                      Icons.close,
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Meal suggestions
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: mealSuggestions.length,
+                itemBuilder: (context, index) {
+                  final suggestion = mealSuggestions[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceVariant,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.restaurant,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 30,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  suggestion['name'],
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  '${suggestion['mealType']} • ${suggestion['calories']} cal',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Text(
+                                      'P: ${suggestion['protein']}g',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.red,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'C: ${suggestion['carbs']}g',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blue,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'F: ${suggestion['fat']}g',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+
+                              final meal = Meal(
+                                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                mealType: suggestion['mealType'],
+                                foodName: suggestion['name'],
+                                calories: suggestion['calories'],
+                                time: DateTime.now().toString().split(' ')[1].substring(0, 5),
+                                imageUrl: 'assets/images/placeholder.jpg',
+                                macros: MacroData(
+                                  protein: suggestion['protein'].toDouble(),
+                                  carbs: suggestion['carbs'].toDouble(),
+                                  fat: suggestion['fat'].toDouble(),
+                                ),
+                              );
+
+                              Provider.of<NutritionProvider>(context, listen: false).addMeal(meal);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('${meal.foodName} added to your meals!'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            },
+                            child: const Text('Add'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showBarcodeScanner() async {
     final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()));
     if (result != null) {
-      print('Scanned barcode: $result');
-      // Process the scanned barcode
+      // Show processing dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Looking up Product'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(
+                'Searching database for barcode: $result',
+                style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Simulate API lookup delay
+      await Future.delayed(const Duration(seconds: 2));
+
+      Navigator.of(context).pop(); // Close processing dialog
+
+      // Mock product data (in a real app, this would come from an API)
+      final mockProducts = {
+        '123456789012': {
+          'name': 'Protein Bar',
+          'calories': 220,
+          'protein': 20.0,
+          'carbs': 18.0,
+          'fat': 8.0,
+        },
+        '987654321098': {
+          'name': 'Greek Yogurt',
+          'calories': 150,
+          'protein': 15.0,
+          'carbs': 12.0,
+          'fat': 5.0,
+        },
+      };
+
+      final product = mockProducts[result] ?? {
+        'name': 'Unknown Product',
+        'calories': 100,
+        'protein': 5.0,
+        'carbs': 15.0,
+        'fat': 3.0,
+      };
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Product Found'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                product['name'] as String,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text('Barcode: $result'),
+              const SizedBox(height: 12),
+              Text('Nutrition per serving:'),
+              Text('• Calories: ${product['calories'] as int}'),
+              Text('• Protein: ${product['protein'] as double}g'),
+              Text('• Carbs: ${product['carbs'] as double}g'),
+              Text('• Fat: ${product['fat'] as double}g'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+
+                final meal = Meal(
+                  id: DateTime.now().millisecondsSinceEpoch.toString(),
+                  mealType: 'Snack',
+                  foodName: product['name'] as String,
+                  calories: product['calories'] as int,
+                  time: DateTime.now().toString().split(' ')[1].substring(0, 5),
+                  imageUrl: 'assets/images/placeholder.jpg',
+                  macros: MacroData(
+                    protein: product['protein'] as double,
+                    carbs: product['carbs'] as double,
+                    fat: product['fat'] as double,
+                  ),
+                );
+
+                Provider.of<NutritionProvider>(context, listen: false).addMeal(meal);
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('${meal.foodName} added to your meals!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              },
+              child: const Text('Add to Meals'),
+            ),
+          ],
+        ),
+      );
     }
   }
 
@@ -1051,13 +1589,32 @@ class _NutritionScreenState extends State<NutritionScreen>
                               onPressed: () {
                                 if (_formKey.currentState!.validate()) {
                                   Navigator.pop(context);
-                                  // Return data or call provider here
-                                  print('Food Name: ${nameController.text}');
-                                  print('Serving Size: ${servingSizeController.text}');
-                                  print('Calories: $calories');
-                                  print('Protein: $protein');
-                                  print('Carbs: $carbs');
-                                  print('Fat: $fat');
+
+                                  // Create meal object and add to provider
+                                  final meal = Meal(
+                                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                    mealType: 'Snack', // Default, could be made selectable
+                                    foodName: nameController.text,
+                                    calories: calories,
+                                    time: DateTime.now().toString().split(' ')[1].substring(0, 5), // HH:MM format
+                                    imageUrl: 'assets/images/placeholder.jpg',
+                                    macros: MacroData(
+                                      protein: protein.toDouble(),
+                                      carbs: carbs.toDouble(),
+                                      fat: fat.toDouble(),
+                                    ),
+                                  );
+
+                                  // Add meal through provider
+                                  Provider.of<NutritionProvider>(context, listen: false).addMeal(meal);
+
+                                  // Show success message
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('${meal.foodName} added to your meals!'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
                                 }
                               },
                               child: const Padding(

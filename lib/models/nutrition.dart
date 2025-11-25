@@ -113,3 +113,20 @@ class NutritionInsight {
     required this.xpReward,
   });
 }
+
+class FastingSession {
+  final DateTime startTime;
+  final DateTime? endTime;
+  final int goalHours;
+  final bool completed;
+
+  FastingSession({
+    required this.startTime,
+    this.endTime,
+    required this.goalHours,
+    this.completed = false,
+  });
+
+  Duration get duration => endTime?.difference(startTime) ?? Duration.zero;
+  bool get isActive => endTime == null;
+}
